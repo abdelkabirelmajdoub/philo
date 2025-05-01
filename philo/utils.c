@@ -5,59 +5,73 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: ael-majd <ael-majd@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/04/05 12:37:46 by ael-majd          #+#    #+#             */
-/*   Updated: 2025/04/10 16:04:03 by ael-majd         ###   ########.fr       */
+/*   Created: 2025/04/11 16:19:48 by ael-majd          #+#    #+#             */
+/*   Updated: 2025/04/21 09:25:10 by ael-majd         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-size_t	get_current_time(void)
+int	check_input(int ac, char **av)
 {
-	struct timeval	time;
+	int	i;
+	int	j;
 
-	if (gettimeofday(&time, NULL) == -1)
-		write(2, "gettimeofday() error\n", 22);
-	return ((time.tv_sec * 1000) + (time.tv_usec / 1000));
-}
-
-int	ft_usleep(size_t milliseconds, t_philo *philo)
-{
-	size_t	start;
-
-	start = get_current_time();
-	while ((get_current_time() - start) < milliseconds)
+	if (ac < 5 || ac > 6)
+		return (write(2, "Wrong args count\n", 17), 1);
+	i = 1;
+	while (av[i])
 	{
-		if (philo->data->someone_die)
-			break ;
-		usleep(500);
+		j = 0;
+		while (av[i][j])
+		{
+			if (!(av[i][j] >= '0' && av[i][j] <= '9') && av[i][j] != ' ')
+				return (printf("Bad args: Invalid input\n"), 1);
+			j++;
+		}
+		i++;
 	}
 	return (0);
 }
 
-void	waitall_threads(t_data *data)
+int	ft_atoi(char *s)
 {
-	int	i;
+	int		i;
+	long	res;
 
-	i = -1;
-	while (++i < data->num_philos)
+	i = 0;
+	res = 0;
+	while (s[i] && s[i] == ' ')
+		i++;
+	while (s[i] && s[i] >= '0' && s[i] <= '9')
 	{
-		if (pthread_join(data->philo[i].thread, NULL) != 0)
-			return ;
+		res = res * 10 + (s[i] - '0');
+		if (res > 2147483647)
+			return (-1);
+		i++;
 	}
-	if (pthread_join(data->death_lock, NULL) != 0)
-		return ;
+	return (res);
 }
 
-void	cleanup(t_data *data)
+size_t	get_time(void)
 {
-	int	i;
+	struct timeval	time;
 
-	i = -1;
-	while (++i < data->num_philos)
+	if (gettimeofday(&time, NULL) == -1)
+		write(2, "gettimeofday() error\n", 21);
+	return ((time.tv_sec * 1000) + (time.tv_usec / 1000));
+}
+
+int	ft_usleep(size_t milliseconds, t_data *data)
+{
+	size_t	start;
+
+	start = get_time();
+	while ((get_time() - start) < milliseconds)
 	{
-		pthread_mutex_destroy(&data->forks[i]);
-		pthread_mutex_destroy(&data->philo[i].status_eat);
+		if (is_death(data))
+			break ;
+		usleep(50);
 	}
-	pthread_mutex_destroy(&data->print_metux);
+	return (0);
 }

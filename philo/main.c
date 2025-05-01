@@ -5,92 +5,73 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: ael-majd <ael-majd@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/03/29 14:07:27 by ael-majd          #+#    #+#             */
-/*   Updated: 2025/04/10 16:03:47 by ael-majd         ###   ########.fr       */
+/*   Created: 2025/04/11 16:18:17 by ael-majd          #+#    #+#             */
+/*   Updated: 2025/05/01 13:12:50 by ael-majd         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-void	print_action(t_philo *philo, char *msg)
+int	creat_join(t_data *data)
 {
-	size_t	time;
+	int	i;
 
-	pthread_mutex_lock(&philo->data->print_metux);
-	if (!philo->data->someone_die)
+	i = 0;
+	while (i < data->nbr_philos)
 	{
-		time = get_current_time() - philo->data->start_time;
-		printf("%zu	%d %s\n", time, philo->id, msg);
+		if (pthread_create(&data->philo[i].thread, NULL, 
+				&routine, &data->philo[i]) != 0)
+			return (1);
+		i++;
 	}
-	pthread_mutex_unlock(&philo->data->print_metux);
+	if (pthread_create(&data->observer, NULL, &monitore, data) != 0)
+		return (1); 
+	return (0);
 }
 
-void	*philo_routine(void *arg)
+int	wait_threads(t_data *data)
 {
-	t_philo	*philo;
+	int	i;
 
-	philo = (t_philo *) arg;
-	if (philo->id % 2 == 0)
-		usleep(500);
-	if (philo->data->num_philos == 1)
-		return (case_one(philo), NULL);
-	while (!philo->data->someone_die)
+	i = 0;
+	while (i < data->nbr_philos)
 	{
-		eat_action(philo);
-		if (philo->data->num_meals != -1 && 
-			philo->meal == philo->data->num_meals)
-			return (NULL);
-		print_action(philo, "is sleeping");
-		ft_usleep(philo->data->time_to_sleep, philo);
-		print_action(philo, "is thinking");
+		if (pthread_join(data->philo[i].thread, NULL) != 0)
+			return (1);
+		i++;
 	}
-	return (NULL);
+	if (pthread_join(data->observer, NULL) != 0)
+		return (1);
+	return (0);
 }
 
-void	*monitore(void *arg)
+void	cleanup(t_data *data)
 {
-	t_data	*data;
-	int		i;
-	int		meals_done;
+	int	i;
 
-	data = (t_data *)arg;
-	while (!data->someone_die)
+	i = 0;
+	while (i < data->nbr_philos)
 	{
-		i = 0;
-		meals_done = 1;
-		while (i < data->num_philos && !data->someone_die)
-		{
-			if (data->num_meals != -1 && data->philo[i].meal < data->num_meals)
-				meals_done = 0;
-			if (!data->philo[i].is_eating && get_current_time() - 
-				data->philo[i].last_meal >= (size_t)data->time_to_die)
-				return (death_action(data, &i), NULL);
-			i++;
-		}
-		if (meals_done && data->num_meals != -1)
-			break ;
-		usleep(50);
+		pthread_mutex_destroy(&data->forks[i]);
+		i++;
 	}
-	return (NULL);
+	pthread_mutex_destroy(&data->meal_check);
+	pthread_mutex_destroy(&data->death_check);
+	pthread_mutex_destroy(&data->print);
 }
 
 int	main(int ac, char **av)
 {
 	t_data	data;
-	int		i;
 
-	if (parsing(av, ac, &data))
+	if (check_input(ac, av))
 		return (1);
-	data.start_time = get_current_time();
-	i = -1;
-	while (++i < data.num_philos)
-	{
-		if (pthread_create(&data.philo[i].thread,
-				NULL, &philo_routine, &data.philo[i]) != 0)
-			return (1);
-	}
-	if (pthread_create(&data.death_lock, NULL, &monitore, &data) != 0)
+	if (init(&data, av))
 		return (1);
-	waitall_threads(&data);
+	if (creat_join(&data))
+		return (1);
+	if (wait_threads(&data))
+		return (1);
 	cleanup(&data);
+	return (0);
 }
